@@ -24,8 +24,8 @@ const db = getDatabase(app);
 
 const DAYS = ['월','화','수','목','금','토'];
 const COLORS = ['#1D9E75','#185FA5','#D85A30','#9E3DAA','#638F22','#B87417'];
-const TEACHERS = ['엘T','정T','제이든T','휴T','미지정'];
-const GRADES = ['초등','중1','중2','중3'];
+const TEACHERS = ['엘T','정T','제이든T','휴T','누리T','미지정'];
+const GRADES = ['초등','중1','중2','중3','고1','고2','고3'];
 const ADMIN_PW = 'russell1';
 
 /* ========== 유틸 ========== */
@@ -342,9 +342,8 @@ window.loadAdmin = async function() {
     _currentPage = 1;
     window._filteredStudents = null;
     _currentTeacher = '전체';
-    document.querySelectorAll('.t-filter-btn').forEach(function(btn){
-      btn.classList.toggle('active', btn.getAttribute('data-teacher')==='전체');
-    });
+    var sel = document.getElementById('teacher-filter-select');
+    if (sel) sel.value = '전체';
     document.getElementById('student-count').textContent = '학생 '+_allStudents.length+'명';
     renderPage(1);
   } catch(e) {
@@ -402,9 +401,8 @@ var _currentTeacher = '전체';
 
 window.filterByTeacher = function(teacher) {
   _currentTeacher = teacher;
-  document.querySelectorAll('.t-filter-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.getAttribute('data-teacher')===teacher);
-  });
+  var sel = document.getElementById('teacher-filter-select');
+  if (sel) sel.value = teacher;
   // Clear search
   document.getElementById('student-search').value = '';
   document.getElementById('clear-search-btn').style.display = 'none';
@@ -1114,12 +1112,15 @@ input:focus{border-color:#06162C;background:#fff}
             <span id="student-count"></span>
             <button class="refresh-btn" onclick="loadAdmin()">새로고침</button>
           </div>
-          <div id="teacher-filter-wrap" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-            <button class="t-filter-btn active" data-teacher="전체" onclick="filterByTeacher('전체')">전체</button>
-            <button class="t-filter-btn" data-teacher="엘T" onclick="filterByTeacher('엘T')">엘T</button>
-            <button class="t-filter-btn" data-teacher="정T" onclick="filterByTeacher('정T')">정T</button>
-            <button class="t-filter-btn" data-teacher="제이든T" onclick="filterByTeacher('제이든T')">제이든T</button>
-            <button class="t-filter-btn" data-teacher="휴T" onclick="filterByTeacher('휴T')">휴T</button>
+          <div style="margin-bottom:10px">
+            <select id="teacher-filter-select" onchange="filterByTeacher(this.value)" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;outline:none;cursor:pointer">
+              <option value="전체">전체 학생</option>
+              <option value="엘T">엘T</option>
+              <option value="정T">정T</option>
+              <option value="제이든T">제이든T</option>
+              <option value="휴T">휴T</option>
+              <option value="누리T">누리T</option>
+            </select>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:1rem">
             <input type="text" id="student-search" placeholder="학생 이름 검색..." onkeydown="if(event.key==='Enter')searchStudent()" style="flex:1;padding:9px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;outline:none" onfocus="this.style.borderColor='#06162C'" onblur="this.style.borderColor='#ddd'"/>
