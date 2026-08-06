@@ -253,14 +253,47 @@ var _allStudents = [];
 var _currentPage = 1;
 var _pageSize = 5;
 
+window._filteredStudents = null;
+
 function renderPage(page) {
   _currentPage = page;
   var grid = document.getElementById('admin-grid');
   grid.innerHTML = '';
+  var source = window._filteredStudents || _allStudents;
   var start = (page-1)*_pageSize;
-  var pageStudents = _allStudents.slice(start, start+_pageSize);
+  var pageStudents = source.slice(start, start+_pageSize);
   pageStudents.forEach(function(s){ grid.appendChild(buildStudentCard(s)); });
-  renderPagination();
+  renderPaginationFrom(source);
+}
+
+function renderPaginationFrom(source) {
+  var total = Math.ceil(source.length/_pageSize);
+  var pg = document.getElementById('admin-pagination');
+  if (total <= 1) { pg.style.display='none'; return; }
+  pg.style.display = 'flex';
+  pg.innerHTML = '';
+  var prev = document.createElement('button');
+  prev.textContent = '◀';
+  prev.style.cssText = 'padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;color:#555;font-family:inherit';
+  if (_currentPage===1) prev.style.opacity='0.4';
+  prev.onclick = function(){ if(_currentPage>1) { _currentPage--; renderPage(_currentPage); } };
+  pg.appendChild(prev);
+  for (var i=1;i<=total;i++) {
+    (function(p){
+      var btn = document.createElement('button');
+      btn.textContent = p;
+      var isActive = p===_currentPage;
+      btn.style.cssText = 'padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;border:1px solid '+(isActive?'#06162C':'#ddd')+';background:'+(isActive?'#06162C':'#fff')+';color:'+(isActive?'#fff':'#555')+';font-weight:'+(isActive?'600':'400');
+      btn.onclick = function(){ renderPage(p); };
+      pg.appendChild(btn);
+    })(i);
+  }
+  var next = document.createElement('button');
+  next.textContent = '▶';
+  next.style.cssText = 'padding:6px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;cursor:pointer;color:#555;font-family:inherit';
+  if (_currentPage===total) next.style.opacity='0.4';
+  next.onclick = function(){ if(_currentPage<total) { _currentPage++; renderPage(_currentPage); } };
+  pg.appendChild(next);
 }
 
 function renderPagination() {
@@ -307,6 +340,11 @@ window.loadAdmin = async function() {
     }
     _allStudents = Object.values(snap.val()).sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
     _currentPage = 1;
+    window._filteredStudents = null;
+    _currentTeacher = '전체';
+    document.querySelectorAll('.t-filter-btn').forEach(function(btn){
+      btn.classList.toggle('active', btn.getAttribute('data-teacher')==='전체');
+    });
     document.getElementById('student-count').textContent = '학생 '+_allStudents.length+'명';
     renderPage(1);
   } catch(e) {
@@ -360,6 +398,46 @@ function buildStudentCard(s) {
 }
 
 /* ========== 학생 검색 ========== */
+var _currentTeacher = '전체';
+
+window.filterByTeacher = function(teacher) {
+  _currentTeacher = teacher;
+  document.querySelectorAll('.t-filter-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-teacher')===teacher);
+  });
+  // Clear search
+  document.getElementById('student-search').value = '';
+  document.getElementById('clear-search-btn').style.display = 'none';
+  var filtered = getFilteredStudents();
+  renderFiltered(filtered);
+};
+
+function getFilteredStudents() {
+  if (_currentTeacher === '전체') return _allStudents;
+  return _allStudents.filter(function(s) {
+    var clsArr = Array.isArray(s.currentClass)?s.currentClass:(s.currentClass?[s.currentClass]:[]);
+    return clsArr.some(function(cls){ return cls.indexOf('['+_currentTeacher+']') === 0; });
+  });
+}
+
+function renderFiltered(students) {
+  var grid = document.getElementById('admin-grid');
+  grid.innerHTML = '';
+  if (!students.length) {
+    grid.innerHTML = '<p class="admin-empty">해당 선생님 학생이 없어요</p>';
+    document.getElementById('admin-pagination').style.display = 'none';
+    return;
+  }
+  // Temporarily override _allStudents for pagination
+  var saved = _allStudents;
+  _allStudents = students;
+  _currentPage = 1;
+  renderPage(1);
+  _allStudents = saved;
+  // Re-set for pagination to work correctly
+  window._filteredStudents = students;
+}
+
 window.searchStudent = function() {
   var q = document.getElementById('student-search').value.trim().toLowerCase();
   var clearBtn = document.getElementById('clear-search-btn');
@@ -369,9 +447,11 @@ window.searchStudent = function() {
   var grid = document.getElementById('admin-grid');
   grid.innerHTML = '';
   document.getElementById('admin-pagination').style.display = 'none';
-  var results = _allStudents.filter(function(s){ return s.name.toLowerCase().includes(q); });
+  var source = window._filteredStudents || _allStudents;
+  var results = source.filter(function(s){ return s.name.toLowerCase().includes(q); });
   if (!results.length) {
     grid.innerHTML = '<p class="admin-empty">검색 결과가 없어요</p>';
+    document.getElementById('admin-pagination').style.display = 'none';
     return;
   }
   results.forEach(function(s){ grid.appendChild(buildStudentCard(s)); });
@@ -380,7 +460,8 @@ window.searchStudent = function() {
 window.clearSearch = function() {
   document.getElementById('student-search').value = '';
   document.getElementById('clear-search-btn').style.display = 'none';
-  if (_allStudents.length) renderPage(1);
+  var source = window._filteredStudents || _allStudents;
+  if (source.length) { _currentPage=1; renderPage(1); }
 };
 
 /* ========== 배치 확인 인라인 ========== */
@@ -948,6 +1029,8 @@ input:focus{border-color:#06162C;background:#fff}
 #student-count{font-size:13px;color:#666}
 .refresh-btn{padding:6px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:12px;cursor:pointer;color:#555;font-family:inherit}
 .teacher-label{padding:6px 14px;background:#06162C;color:#fff;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:6px;margin-top:4px}
+.t-filter-btn{padding:6px 14px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:12px;color:#555;cursor:pointer;font-family:inherit;transition:all .1s}
+.t-filter-btn.active{background:#06162C;color:#fff;border-color:#06162C;font-weight:500}
 .s-card{background:#fff;border:1px solid #e8e8e8;border-radius:14px;overflow:hidden;margin-bottom:12px}
 .s-bar{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#f9f9f7;flex-wrap:wrap;gap:6px}
 .s-name{font-size:14px;font-weight:600;color:#06162C}
@@ -1030,6 +1113,13 @@ input:focus{border-color:#06162C;background:#fff}
           <div class="admin-top">
             <span id="student-count"></span>
             <button class="refresh-btn" onclick="loadAdmin()">새로고침</button>
+          </div>
+          <div id="teacher-filter-wrap" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="t-filter-btn active" data-teacher="전체" onclick="filterByTeacher('전체')">전체</button>
+            <button class="t-filter-btn" data-teacher="엘T" onclick="filterByTeacher('엘T')">엘T</button>
+            <button class="t-filter-btn" data-teacher="정T" onclick="filterByTeacher('정T')">정T</button>
+            <button class="t-filter-btn" data-teacher="제이든T" onclick="filterByTeacher('제이든T')">제이든T</button>
+            <button class="t-filter-btn" data-teacher="휴T" onclick="filterByTeacher('휴T')">휴T</button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:1rem">
             <input type="text" id="student-search" placeholder="학생 이름 검색..." onkeydown="if(event.key==='Enter')searchStudent()" style="flex:1;padding:9px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;outline:none" onfocus="this.style.borderColor='#06162C'" onblur="this.style.borderColor='#ddd'"/>
