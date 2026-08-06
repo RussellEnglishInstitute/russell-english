@@ -80,10 +80,109 @@ window.checkEmpty = function(day) {
   }
 };
 
+window.setStudentMode = function(mode) {
+  var newBtn = document.getElementById('mode-new-btn');
+  var editBtn = document.getElementById('mode-edit-btn');
+  if (mode === 'new') {
+    newBtn.style.background='#06162C'; newBtn.style.color='#fff'; newBtn.style.borderColor='#06162C';
+    editBtn.style.background='#fff'; editBtn.style.color='#555'; editBtn.style.borderColor='#ddd';
+    document.getElementById('student-form').innerHTML = studentFormHTML();
+    buildDays();
+  } else {
+    newBtn.style.background='#fff'; newBtn.style.color='#555'; newBtn.style.borderColor='#ddd';
+    editBtn.style.background='#06162C'; editBtn.style.color='#fff'; editBtn.style.borderColor='#06162C';
+    document.getElementById('student-form').innerHTML =
+      '<div class="name-row"><label>이름</label><input type="text" id="edit-name-input" placeholder="이름을 입력하세요" onkeydown="if(event.key===&#39;Enter&#39;)loadStudentEdit()"/></div>' +
+      '<button class="submit-btn" onclick="loadStudentEdit()" style="margin-top:0.5rem">스케쥴 불러오기</button>' +
+      '<div id="edit-load-err" class="err" style="display:none;margin-top:6px"></div>' +
+      '<div id="edit-form-wrap" style="display:none;margin-top:1.25rem"></div>';
+  }
+};
+
+window.loadStudentEdit = async function() {
+  var name = document.getElementById('edit-name-input').value.trim();
+  var errEl = document.getElementById('edit-load-err');
+  errEl.style.display = 'none';
+  if (!name) { errEl.textContent='이름을 입력해주세요.'; errEl.style.display='block'; return; }
+  var btn = document.querySelector('#student-form .submit-btn');
+  btn.textContent='불러오는 중...'; btn.disabled=true;
+  try {
+    var snap = await get(child(ref(db), 'schedules/'+name));
+    if (!snap.exists()) {
+      errEl.textContent = name+' 학생의 스케쥴을 찾을 수 없어요.';
+      errEl.style.display = 'block';
+      btn.textContent='스케쥴 불러오기'; btn.disabled=false;
+      return;
+    }
+    var s = snap.val();
+    var wrap = document.getElementById('edit-form-wrap');
+    wrap.innerHTML = '';
+    // Grade section
+    var gradeDiv = document.createElement('div');
+    gradeDiv.style.marginBottom = '1.25rem';
+    gradeDiv.innerHTML = '<div style="font-size:13px;color:#555;font-weight:500;margin-bottom:8px">학년</div>';
+    var gradeBtnWrap = document.createElement('div');
+    gradeBtnWrap.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+    GRADES.forEach(function(g) {
+      var gb = document.createElement('button');
+      gb.type = 'button';
+      gb.textContent = g;
+      gb.className = 'grade-btn' + ((s.grade||'')=== g ? ' selected' : '');
+      gb.dataset.grade = g;
+      gb.onclick = function(){ selectGrade(this.dataset.grade); };
+      gradeBtnWrap.appendChild(gb);
+    });
+    var gradeInput = document.createElement('input');
+    gradeInput.type = 'hidden'; gradeInput.id = 'student-grade'; gradeInput.value = s.grade||'';
+    gradeDiv.appendChild(gradeBtnWrap);
+    gradeDiv.appendChild(gradeInput);
+    wrap.appendChild(gradeDiv);
+    // Days
+    DAYS.forEach(function(day,i) {
+      var block = document.createElement('div'); block.className='day-block';
+      var header = document.createElement('div'); header.className='day-header';
+      var lbl = document.createElement('span'); lbl.className='day-label';
+      lbl.innerHTML = '<span class="dot" style="background:'+COLORS[i]+'"></span>'+day+'요일';
+      var addBtn = document.createElement('button'); addBtn.className='add-btn'; addBtn.textContent='+ 추가';
+      addBtn.onclick = (function(d){ return function(){ addSlot(d); }; })(day);
+      header.appendChild(lbl); header.appendChild(addBtn);
+      var slotsDiv = document.createElement('div'); slotsDiv.className='slots'; slotsDiv.id='slots-'+day;
+      var slots = (s.days&&s.days[day])||[];
+      if (!slots.length) {
+        slotsDiv.innerHTML = '<p class="empty-note" id="empty-'+day+'">아직 추가된 수업이 없어요</p>';
+      } else {
+        slots.forEach(function(sl) {
+          var row = document.createElement('div'); row.className='slot-row';
+          var t1=document.createElement('input'); t1.type='time'; t1.value=sl.start||'';
+          var tilde=document.createElement('span'); tilde.className='tilde'; tilde.textContent='~';
+          var t2=document.createElement('input'); t2.type='time'; t2.value=sl.end||'';
+          var txt=document.createElement('input'); txt.type='text'; txt.value=sl.subject||''; txt.placeholder='과목/학원명';
+          var rmBtn=document.createElement('button'); rmBtn.className='rm-btn'; rmBtn.textContent='×';
+          rmBtn.onclick=(function(d){ return function(){ this.closest('.slot-row').remove(); checkEmpty(d); }; })(day);
+          row.appendChild(t1); row.appendChild(tilde); row.appendChild(t2); row.appendChild(txt); row.appendChild(rmBtn);
+          slotsDiv.appendChild(row);
+        });
+      }
+      block.appendChild(header); block.appendChild(slotsDiv);
+      wrap.appendChild(block);
+    });
+    var errDiv = document.createElement('div'); errDiv.id='form-err'; errDiv.className='err'; errDiv.style.display='none'; errDiv.style.marginTop='8px';
+    var saveBtn = document.createElement('button'); saveBtn.className='submit-btn'; saveBtn.textContent='수정 저장하기'; saveBtn.style.marginTop='1rem';
+    saveBtn.onclick = window.submitSchedule;
+    wrap.appendChild(errDiv); wrap.appendChild(saveBtn);
+    wrap.style.display = '';
+    btn.textContent='스케쥴 불러오기'; btn.disabled=false;
+  } catch(e) {
+    errEl.textContent='오류: '+e.message; errEl.style.display='block';
+    btn.textContent='스케쥴 불러오기'; btn.disabled=false;
+  }
+};
+
 window.submitSchedule = async function() {
   var errEl = document.getElementById('form-err');
   errEl.style.display = 'none';
-  var name = document.getElementById('student-name').value.trim();
+  var nameEl = document.getElementById('student-name')||document.getElementById('edit-name-input');
+  var name = nameEl ? nameEl.value.trim() : '';
   if (!name) { errEl.textContent='이름을 입력해주세요.'; errEl.style.display='block'; return; }
   var grade = document.getElementById('student-grade').value;
   if (!grade) { errEl.textContent='학년을 선택해주세요.'; errEl.style.display='block'; return; }
@@ -105,7 +204,7 @@ window.submitSchedule = async function() {
   btn.textContent='저장 중...'; btn.disabled=true;
   try {
     await set(ref(db,'schedules/'+name), {name:name,grade:grade,days:days,updatedAt:new Date().toISOString()});
-    document.getElementById('student-form').innerHTML = '<div class="success"><div class="check">✓</div><p class="big">'+name+' 학생 스케쥴이 저장됐어요!</p><p class="small">선생님이 확인할 수 있어요.</p><button class="submit-btn" style="max-width:200px;margin:1.5rem auto 0" onclick="resetForm()">다시 입력하기</button></div>';
+    document.getElementById('student-form').innerHTML = '<div class="success"><div class="check">✓</div><p class="big">'+name+' 학생 스케쥴이 저장됐어요!</p><p class="small">선생님이 확인할 수 있어요.</p><button class="submit-btn" style="max-width:200px;margin:1.5rem auto 0" onclick="resetForm()">처음으로</button></div>';
   } catch(e) {
     errEl.textContent='저장 실패: '+e.message; errEl.style.display='block';
     btn.textContent='스케쥴 저장하기'; btn.disabled=false;
@@ -898,6 +997,10 @@ input:focus{border-color:#06162C;background:#fff}
 
   <!-- 학생 뷰 -->
   <div id="view-student">
+    <div style="display:flex;gap:6px;margin-bottom:1rem">
+      <button id="mode-new-btn" onclick="setStudentMode('new')" style="flex:1;padding:8px;border-radius:8px;border:2px solid #06162C;background:#06162C;color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">새 스케쥴 입력</button>
+      <button id="mode-edit-btn" onclick="setStudentMode('edit')" style="flex:1;padding:8px;border-radius:8px;border:2px solid #ddd;background:#fff;color:#555;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">기존 스케쥴 수정</button>
+    </div>
     <div class="card">
       <div id="student-form"></div>
     </div>
