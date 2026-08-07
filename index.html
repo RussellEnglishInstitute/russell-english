@@ -939,30 +939,60 @@ async function loadSwapClasses() {
     return (!s.grade||!c.grade||c.grade===s.grade) && !currentClasses.includes(c.name);
   });
   var btnWrap = document.getElementById('swap-cls-btns');
+  btnWrap.innerHTML = '';
   if (!filtered.length) {
     btnWrap.innerHTML = '<p style="font-size:13px;color:#aaa">같은 학년의 다른 반이 없어요</p>';
   } else {
-    // Count members for each class
     var schedSnap = await get(child(ref(db), 'schedules'));
     var allStudents = schedSnap.exists() ? Object.values(schedSnap.val()) : [];
-    btnWrap.innerHTML = '';
+    var maxSize = 4;
+    // Pre-calculate s busy times
+    var sBusy = [];
+    Object.entries(s.days||{}).forEach(function(e){ e[1].forEach(function(sl){ if(sl.subject) sBusy.push({day:e[0],start:sl.start,end:sl.end}); }); });
+
     filtered.forEach(function(c) {
       var members = allStudents.filter(function(st){
         var ca = Array.isArray(st.currentClass)?st.currentClass:(st.currentClass?[st.currentClass]:[]);
         return ca.includes(c.name);
       });
       var count = members.length;
-      var maxSize = 4;
-      var haTO = count < maxSize;
-      var btn = document.createElement('button');
-      btn.id = 'swcls-'+c.id;
-      btn.style.cssText = 'padding:8px 12px;border-radius:8px;border:1px solid '+(haTO?'#1D9E75':'#ddd')+';background:'+(haTO?'#E1F5EE':'#fff')+';font-size:12px;color:'+(haTO?'#0F6E56':'#555')+';cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px';
-      btn.innerHTML = '<span>'+c.name+'</span>'
-        + '<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:'+(haTO?'#1D9E75':'#888')+';color:#fff">'
-        + (haTO ? count+'/'+maxSize+' TO '+(maxSize-count) : count+'/'+maxSize+' FULL')
-        + '</span>';
-      btn.onclick = (function(cls, to){ return function(){ selectSwapClass(cls.name, to); }; })(c, haTO);
-      btnWrap.appendChild(btn);
+      var hasTO = count < maxSize;
+
+      // Check if s can go to this class
+      var sConflicts = [];
+      c.slots.forEach(function(cs){ sBusy.forEach(function(sb){ if(cs.day===sb.day&&overlaps(cs.start,cs.end,sb.start,sb.end)) sConflicts.push(cs.day+' '+cs.start+'~'+cs.end); }); });
+      var sCanGo = sConflicts.length===0;
+
+      // Build card
+      var card = document.createElement('div');
+      card.style.cssText = 'border:1.5px solid '+(hasTO?(sCanGo?'#1D9E75':'#F7C1C1'):'#e0e0e0')+';border-radius:10px;padding:10px 12px;margin-bottom:8px;background:'+(hasTO?(sCanGo?'#f0faf6':'#fff9f9'):'#fafafa')+';cursor:pointer';
+      card.onclick = (function(cls,to){ return function(){ selectSwapClass(cls.name,to); }; })(c, hasTO);
+
+      // Header: class name + status badge
+      var header = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        + '<span style="font-size:13px;font-weight:600;color:#06162C">'+c.name+'</span>'
+        + '<span style="font-size:11px;font-weight:600;padding:2px 9px;border-radius:4px;background:'+(hasTO?(sCanGo?'#1D9E75':'#A32D2D'):'#888')+';color:#fff">'
+        + (hasTO?(sCanGo?'✓ 이동 가능':'✗ 충돌'):'FULL · 스왑 필요')+'</span>'
+        + '</div>';
+
+      // Member slots row
+      var slots = '';
+      for (var i=0; i<maxSize; i++) {
+        if (i < members.length) {
+          // Filled slot
+          slots += '<div style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;background:#E8ECF2;margin-right:4px;font-size:12px;font-weight:500;color:#06162C">'
+            + '<span style="width:20px;height:20px;border-radius:50%;background:#06162C;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">'+members[i].name[0]+'</span>'
+            + members[i].name+'</div>';
+        } else {
+          // Empty TO slot
+          slots += '<div style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1.5px dashed '+(sCanGo?'#1D9E75':'#F7A1A1')+';margin-right:4px;font-size:12px;font-weight:600;color:'+(sCanGo?'#0F6E56':'#A32D2D')+';">'
+            + (sCanGo?'+ '+s.name:'✗ 충돌')+'</div>';
+        }
+      }
+
+      card.innerHTML = header + '<div>'+slots+'</div>';
+      if (!sCanGo && !hasTO) card.style.opacity='0.6';
+      btnWrap.appendChild(card);
     });
   }
   document.getElementById('swap-step2-title').textContent = '이동할 반 선택'+(s.grade?' — 같은 학년('+s.grade+')만 표시':'');
