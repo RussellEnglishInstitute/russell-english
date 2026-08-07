@@ -22,8 +22,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const DAYS = ['월','화','수','목','금','토'];
-const COLORS = ['#1D9E75','#185FA5','#D85A30','#9E3DAA','#638F22','#B87417'];
+const DAYS = ['월','화','수','목','금','토','일'];
+const COLORS = ['#1D9E75','#185FA5','#D85A30','#9E3DAA','#638F22','#B87417','#A32D2D'];
 const TEACHERS = ['엘T','정T','제이든T','휴T','누리T','미지정'];
 const GRADES = ['초등','중1','중2','중3','고1','고2','고3'];
 const ADMIN_PW = 'russell1';
@@ -624,7 +624,7 @@ window.addClsSlot = function() {
 };
 function renderClsSlotsInput() {
   var w = document.getElementById('cls-slots-wrap');
-  var DAY_PRESETS = [{label:'월수',days:['월','수']},{label:'화목',days:['화','목']},{label:'월금',days:['월','금']},{label:'수금',days:['수','금']},{label:'월수금',days:['월','수','금']},{label:'화목토',days:['화','목','토']},{label:'월',days:['월']},{label:'화',days:['화']},{label:'수',days:['수']},{label:'목',days:['목']},{label:'금',days:['금']},{label:'토',days:['토']}];
+  var DAY_PRESETS = [{label:'월수',days:['월','수']},{label:'화목',days:['화','목']},{label:'월금',days:['월','금']},{label:'수금',days:['수','금']},{label:'월수금',days:['월','수','금']},{label:'화목토',days:['화','목','토']},{label:'월',days:['월']},{label:'화',days:['화']},{label:'수',days:['수']},{label:'목',days:['목']},{label:'금',days:['금']},{label:'토',days:['토']},{label:'일',days:['일']}];
   w.innerHTML = clsSlots.map(function(s,i) {
     var presetBtns = DAY_PRESETS.map(function(p) {
       var sel = s.days.length===p.days.length && s.days.slice().sort().join()===p.days.slice().sort().join();
@@ -769,7 +769,7 @@ window.editClass = async function(id) {
 window._editClsSlots = [];
 function renderClsEditSlots() {
   var w = document.getElementById('cls-edit-slots-wrap');
-  var DAY_PRESETS=[{label:'월수',days:['월','수']},{label:'화목',days:['화','목']},{label:'월금',days:['월','금']},{label:'수금',days:['수','금']},{label:'월수금',days:['월','수','금']},{label:'화목토',days:['화','목','토']},{label:'월',days:['월']},{label:'화',days:['화']},{label:'수',days:['수']},{label:'목',days:['목']},{label:'금',days:['금']},{label:'토',days:['토']}];
+  var DAY_PRESETS=[{label:'월수',days:['월','수']},{label:'화목',days:['화','목']},{label:'월금',days:['월','금']},{label:'수금',days:['수','금']},{label:'월수금',days:['월','수','금']},{label:'화목토',days:['화','목','토']},{label:'월',days:['월']},{label:'화',days:['화']},{label:'수',days:['수']},{label:'목',days:['목']},{label:'금',days:['금']},{label:'토',days:['토']},{label:'일',days:['일']}];
   w.innerHTML = window._editClsSlots.map(function(s,i) {
     var presetBtns = DAY_PRESETS.map(function(p) {
       var sel = s.days.length===p.days.length && s.days.slice().sort().join()===p.days.slice().sort().join();
