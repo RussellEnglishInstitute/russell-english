@@ -24,7 +24,11 @@ const db = getDatabase(app);
 
 const DAYS = ['월','화','수','목','금','토','일'];
 const COLORS = ['#1D9E75','#185FA5','#D85A30','#9E3DAA','#638F22','#B87417','#A32D2D'];
-const TEACHERS = ['엘T','정T','제이든T','휴T','누리T','미지정'];
+const TEACHERS = ['정T','제이든T','엘T','비비T','휴T','누리T','현T','미지정'];
+const MIDDLE_TEACHERS = ['정T','제이든T','엘T','비비T'];
+const HIGH_TEACHERS = ['휴T','누리T','현T'];
+const MIDDLE_GRADES = ['초등','중1','중2','중3'];
+const HIGH_GRADES = ['고1','고2','고3'];
 const GRADES = ['초등','중1','중2','중3','고1','고2','고3'];
 const ADMIN_PW = 'russell1';
 
@@ -384,10 +388,18 @@ window.loadAdmin = async function() {
     _currentPage = 1;
     window._filteredStudents = null;
     _currentTeacher = '전체';
+    _currentDept = 'middle';
+    // Init dept tabs
+    document.getElementById('dept-tab-middle').className = 'dept-tab active';
+    document.getElementById('dept-tab-high').className = 'dept-tab';
+    // Init middle teacher dropdown
     var sel = document.getElementById('teacher-filter-select');
-    if (sel) sel.value = '전체';
-    document.getElementById('student-count').textContent = '학생 '+_allStudents.length+'명';
-    renderPage(1);
+    if (sel) {
+      sel.innerHTML = '<option value="전체">전체 학생</option>'
+        + MIDDLE_TEACHERS.map(function(t){ return '<option value="'+t+'">'+t+'</option>'; }).join('');
+      sel.value = '전체';
+    }
+    renderFilteredByDept();
   } catch(e) {
     grid.innerHTML = '<p class="admin-empty">불러오기 실패: '+e.message+'</p>';
   }
@@ -440,43 +452,62 @@ function buildStudentCard(s) {
 
 /* ========== 학생 검색 ========== */
 var _currentTeacher = '전체';
+var _currentDept = 'middle'; // 'middle' or 'high'
+
+window.switchDept = function(dept) {
+  _currentDept = dept;
+  _currentTeacher = '전체';
+  document.getElementById('dept-tab-middle').className = 'dept-tab' + (dept==='middle'?' active':'');
+  document.getElementById('dept-tab-high').className = 'dept-tab' + (dept==='high'?' active':'');
+  // Update teacher dropdown
+  var teachers = dept==='middle' ? MIDDLE_TEACHERS : HIGH_TEACHERS;
+  var sel = document.getElementById('teacher-filter-select');
+  sel.innerHTML = '<option value="전체">전체 학생</option>'
+    + teachers.map(function(t){ return '<option value="'+t+'">'+t+'</option>'; }).join('')
+    + '<option value="대기자">대기자 (반 미배정)</option>';
+  sel.value = '전체';
+  // Clear search
+  document.getElementById('student-search').value = '';
+  document.getElementById('clear-search-btn').style.display = 'none';
+  window._filteredStudents = null;
+  _currentPage = 1;
+  renderFilteredByDept();
+};
+
+function renderFilteredByDept() {
+  var grades = _currentDept==='middle' ? MIDDLE_GRADES : HIGH_GRADES;
+  var deptStudents = _allStudents.filter(function(s){
+    if (!s.grade) return _currentDept==='middle';
+    return grades.includes(s.grade);
+  });
+  if (_currentTeacher === '대기자') {
+    // 반 미배정 학생
+    deptStudents = deptStudents.filter(function(s){
+      var ca = Array.isArray(s.currentClass)?s.currentClass:(s.currentClass?[s.currentClass]:[]);
+      return ca.length === 0 || (ca.length === 1 && ca[0] === '');
+    });
+  } else if (_currentTeacher !== '전체') {
+    deptStudents = deptStudents.filter(function(s){
+      var ca = Array.isArray(s.currentClass)?s.currentClass:(s.currentClass?[s.currentClass]:[]);
+      return ca.some(function(cls){ return cls.indexOf('['+_currentTeacher+']')===0; });
+    });
+  }
+  window._filteredStudents = deptStudents;
+  _currentPage = 1;
+  renderPage(1);
+  document.getElementById('student-count').textContent = '학생 '+deptStudents.length+'명';
+}
 
 window.filterByTeacher = function(teacher) {
   _currentTeacher = teacher;
   var sel = document.getElementById('teacher-filter-select');
   if (sel) sel.value = teacher;
-  // Clear search
   document.getElementById('student-search').value = '';
   document.getElementById('clear-search-btn').style.display = 'none';
-  var filtered = getFilteredStudents();
-  renderFiltered(filtered);
+  renderFilteredByDept();
 };
 
-function getFilteredStudents() {
-  if (_currentTeacher === '전체') return _allStudents;
-  return _allStudents.filter(function(s) {
-    var clsArr = Array.isArray(s.currentClass)?s.currentClass:(s.currentClass?[s.currentClass]:[]);
-    return clsArr.some(function(cls){ return cls.indexOf('['+_currentTeacher+']') === 0; });
-  });
-}
 
-function renderFiltered(students) {
-  var grid = document.getElementById('admin-grid');
-  grid.innerHTML = '';
-  if (!students.length) {
-    grid.innerHTML = '<p class="admin-empty">해당 선생님 학생이 없어요</p>';
-    document.getElementById('admin-pagination').style.display = 'none';
-    return;
-  }
-  // Temporarily override _allStudents for pagination
-  var saved = _allStudents;
-  _allStudents = students;
-  _currentPage = 1;
-  renderPage(1);
-  _allStudents = saved;
-  // Re-set for pagination to work correctly
-  window._filteredStudents = students;
-}
 
 window.searchStudent = function() {
   var q = document.getElementById('student-search').value.trim().toLowerCase();
@@ -500,8 +531,7 @@ window.searchStudent = function() {
 window.clearSearch = function() {
   document.getElementById('student-search').value = '';
   document.getElementById('clear-search-btn').style.display = 'none';
-  var source = window._filteredStudents || _allStudents;
-  if (source.length) { _currentPage=1; renderPage(1); }
+  renderFilteredByDept();
 };
 
 /* ========== 배치 확인 인라인 ========== */
@@ -1071,6 +1101,8 @@ input:focus{border-color:#06162C;background:#fff}
 .lock-wrap p{font-size:14px;color:#666;margin-bottom:12px}
 .lock-wrap input{max-width:220px;margin:0 auto 10px}
 .lock-btn{padding:9px 28px;background:#06162C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit}
+.dept-tab{padding:7px 20px;font-size:13px;cursor:pointer;border:none;background:none;font-family:inherit;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+.dept-tab.active{color:#06162C;font-weight:600;border-bottom-color:#06162C}
 .atab{padding:7px 16px;font-size:13px;cursor:pointer;border:none;background:none;font-family:inherit;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px}
 .atab.active{color:#06162C;font-weight:600;border-bottom-color:#06162C}
 .admin-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
@@ -1162,14 +1194,15 @@ input:focus{border-color:#06162C;background:#fff}
             <span id="student-count"></span>
             <button class="refresh-btn" onclick="loadAdmin()">새로고침</button>
           </div>
+          <!-- 중등부/고등부 서브탭 -->
+          <div style="display:flex;gap:0;margin-bottom:1rem;border-bottom:2px solid #eee">
+            <button class="dept-tab active" id="dept-tab-middle" onclick="switchDept('middle')">중등부</button>
+            <button class="dept-tab" id="dept-tab-high" onclick="switchDept('high')">고등부</button>
+          </div>
+          <!-- 선생님 필터 -->
           <div style="margin-bottom:10px">
             <select id="teacher-filter-select" onchange="filterByTeacher(this.value)" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;outline:none;cursor:pointer">
               <option value="전체">전체 학생</option>
-              <option value="엘T">엘T</option>
-              <option value="정T">정T</option>
-              <option value="제이든T">제이든T</option>
-              <option value="휴T">휴T</option>
-              <option value="누리T">누리T</option>
             </select>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:1rem">
