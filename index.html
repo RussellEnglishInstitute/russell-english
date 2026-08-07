@@ -203,7 +203,10 @@ window.submitSchedule = async function() {
   var btn = document.querySelector('.submit-btn');
   btn.textContent='저장 중...'; btn.disabled=true;
   try {
-    await set(ref(db,'schedules/'+name), {name:name,grade:grade,days:days,updatedAt:new Date().toISOString()});
+    var clsSelEl = document.getElementById('student-cls-select');
+    var selectedCls = clsSelEl ? clsSelEl.value : '';
+    var currentClass = selectedCls ? [selectedCls] : [];
+    await set(ref(db,'schedules/'+name), {name:name,grade:grade,currentClass:currentClass,days:days,updatedAt:new Date().toISOString()});
     document.getElementById('student-form').innerHTML = '<div class="success"><div class="check">✓</div><p class="big">'+name+' 학생 스케쥴이 저장됐어요!</p><p class="small">선생님이 확인할 수 있어요.</p><button class="submit-btn" style="max-width:200px;margin:1.5rem auto 0" onclick="resetForm()">처음으로</button></div>';
   } catch(e) {
     errEl.textContent='저장 실패: '+e.message; errEl.style.display='block';
@@ -217,14 +220,53 @@ window.resetForm = function() {
 };
 
 function studentFormHTML() {
-  return '<div class="name-row"><label>이름</label><input type="text" id="student-name" placeholder="이름을 입력하세요"/></div><div style="margin-bottom:1.25rem"><div style="font-size:13px;color:#555;font-weight:500;margin-bottom:8px">학년</div><div style="display:flex;gap:8px;flex-wrap:wrap" id="grade-btns"><button type="button" class="grade-btn" data-grade="초등" onclick="selectGrade(\'초등\')">초등</button><button type="button" class="grade-btn" data-grade="중1" onclick="selectGrade(\'중1\')">중1</button><button type="button" class="grade-btn" data-grade="중2" onclick="selectGrade(\'중2\')">중2</button><button type="button" class="grade-btn" data-grade="중3" onclick="selectGrade(\'중3\')">중3</button><button type="button" class="grade-btn" data-grade="고1" onclick="selectGrade(\'고1\')">고1</button><button type="button" class="grade-btn" data-grade="고2" onclick="selectGrade(\'고2\')">고2</button><button type="button" class="grade-btn" data-grade="고3" onclick="selectGrade(\'고3\')">고3</button></div><input type="hidden" id="student-grade" value=""/></div><div id="days-grid"></div><div id="form-err" class="err" style="display:none"></div><button class="submit-btn" onclick="submitSchedule()">스케쥴 저장하기</button>';
+  return '<div class="name-row"><label>이름</label><input type="text" id="student-name" placeholder="이름을 입력하세요"/></div>'
+    + '<div style="margin-bottom:1.25rem"><div style="font-size:13px;color:#555;font-weight:500;margin-bottom:8px">학년</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap" id="grade-btns">'
+    + '<button type="button" class="grade-btn" data-grade="초등" onclick="selectGrade(\'초등\')">초등</button>'
+    + '<button type="button" class="grade-btn" data-grade="중1" onclick="selectGrade(\'중1\')">중1</button>'
+    + '<button type="button" class="grade-btn" data-grade="중2" onclick="selectGrade(\'중2\')">중2</button>'
+    + '<button type="button" class="grade-btn" data-grade="중3" onclick="selectGrade(\'중3\')">중3</button>'
+    + '<button type="button" class="grade-btn" data-grade="고1" onclick="selectGrade(\'고1\')">고1</button>'
+    + '<button type="button" class="grade-btn" data-grade="고2" onclick="selectGrade(\'고2\')">고2</button>'
+    + '<button type="button" class="grade-btn" data-grade="고3" onclick="selectGrade(\'고3\')">고3</button>'
+    + '</div><input type="hidden" id="student-grade" value=""/></div>'
+    + '<div id="cls-select-wrap" style="display:none;margin-bottom:1.25rem">'
+    + '<div style="font-size:13px;color:#555;font-weight:500;margin-bottom:8px">Russell English 반 선택</div>'
+    + '<select id="student-cls-select" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:#1a1a1a;outline:none;transition:border-color .15s" onfocus="this.style.borderColor=\'#06162C\'" onblur="this.style.borderColor=\'#ddd\'">'
+    + '<option value="">반을 선택해주세요</option>'
+    + '</select>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:4px">해당 학년 반이 없으면 선생님께 문의해주세요</div>'
+    + '</div>'
+    + '<div id="days-grid"></div>'
+    + '<div id="form-err" class="err" style="display:none"></div>'
+    + '<button class="submit-btn" onclick="submitSchedule()">스케쥴 저장하기</button>';
 }
 
-window.selectGrade = function(grade) {
+window.selectGrade = async function(grade) {
   document.getElementById('student-grade').value = grade;
   document.querySelectorAll('.grade-btn').forEach(function(btn) {
     btn.classList.toggle('selected', btn.dataset.grade===grade);
   });
+  // Load classes for this grade
+  var wrap = document.getElementById('cls-select-wrap');
+  var sel = document.getElementById('student-cls-select');
+  if (!wrap || !sel) return;
+  wrap.style.display = '';
+  sel.innerHTML = '<option value="">불러오는 중...</option>';
+  try {
+    var snap = await get(child(ref(db), 'classes'));
+    var cls = snap.exists() && Array.isArray(snap.val()) ? snap.val() : [];
+    var filtered = cls.filter(function(c){ return !c.grade || c.grade === grade; });
+    if (!filtered.length) {
+      sel.innerHTML = '<option value="">해당 학년 반이 없어요</option>';
+    } else {
+      sel.innerHTML = '<option value="">반을 선택해주세요</option>'
+        + filtered.map(function(c){ return '<option value="'+c.name+'">'+c.name+'</option>'; }).join('');
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">불러오기 실패</option>';
+  }
 };
 
 /* ========== 관리자 로그인 ========== */
