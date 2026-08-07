@@ -582,7 +582,7 @@ window.openEdit = async function(name) {
   var overlay = document.createElement('div');
   overlay.id = 'edit-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:1rem;';
-  overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;"><span style="font-size:16px;font-weight:600;color:#06162C;">'+ name +' 학생 수정</span><button onclick="document.getElementById(\'edit-overlay\').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#aaa;line-height:1;">×</button></div><div style="background:#f9f9f7;border-radius:10px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:8px">학년</div><div id="edit-grade-wrap" style="display:flex;gap:6px;flex-wrap:wrap">'+gradeBtnsHTML+'</div><input type="hidden" id="edit-student-grade" value="'+currentGrade+'"/></div><div style="background:#E8ECF2;border-radius:10px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:8px">현재 수업</div>'+clsBtnsHTML+'</div><div style="background:#f9f9f7;border-radius:10px;padding:12px 14px;margin-bottom:1.25rem;"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:8px">담당 선생님</div><div id="edit-teacher-wrap" style="display:flex;gap:6px;flex-wrap:wrap">'+ teacherBtnsHTML +'</div><input type="hidden" id="edit-teacher-val" value="'+(s.teacher||'')+'"/></div>'+ daysHTML +'<div id="edit-err" class="err" style="display:none;margin-top:8px;"></div><button class="submit-btn" onclick="saveEdit(\''+ name +'\')">저장하기</button></div>';
+  overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;"><span style="font-size:16px;font-weight:600;color:#06162C;">학생 수정</span><button onclick="document.getElementById(\'edit-overlay\').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#aaa;line-height:1;">×</button></div><div style="margin-bottom:1.25rem"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:6px">이름</div><input type="text" id="edit-student-name" value="'+ name +'" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;outline:none" onfocus="this.style.borderColor=\'#06162C\'" onblur="this.style.borderColor=\'#ddd\'"/></div><div style="background:#f9f9f7;border-radius:10px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:8px">학년</div><div id="edit-grade-wrap" style="display:flex;gap:6px;flex-wrap:wrap">'+gradeBtnsHTML+'</div><input type="hidden" id="edit-student-grade" value="'+currentGrade+'"/></div><div style="background:#E8ECF2;border-radius:10px;padding:12px 14px;margin-bottom:1rem;"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:8px">현재 수업</div>'+clsBtnsHTML+'</div><div style="background:#f9f9f7;border-radius:10px;padding:12px 14px;margin-bottom:1.25rem;"><div style="font-size:12px;color:#555;font-weight:500;margin-bottom:8px">담당 선생님</div><div id="edit-teacher-wrap" style="display:flex;gap:6px;flex-wrap:wrap">'+ teacherBtnsHTML +'</div><input type="hidden" id="edit-teacher-val" value="'+(s.teacher||'')+'"/></div>'+ daysHTML +'<div id="edit-err" class="err" style="display:none;margin-top:8px;"></div><button class="submit-btn" onclick="saveEdit(\''+ name +'\')">저장하기</button></div>';
   document.body.appendChild(overlay);
 
   overlay.querySelectorAll('.edit-grade-btn').forEach(function(btn) {
@@ -627,6 +627,10 @@ window.checkEditEmpty = function(day) {
 
 window.saveEdit = async function(name) {
   var errEl = document.getElementById('edit-err');
+  // Check if name changed
+  var newNameEl = document.getElementById('edit-student-name');
+  var newName = newNameEl ? newNameEl.value.trim() : name;
+  if (!newName) { errEl.textContent='이름을 입력해주세요.'; errEl.style.display='block'; return; }
   var days={}; var hasAny=false;
   DAYS.forEach(function(day) {
     var rows = document.querySelectorAll('#edit-slots-'+day+' .slot-row');
@@ -643,7 +647,11 @@ window.saveEdit = async function(name) {
   var teacher = document.getElementById('edit-teacher-val').value;
   var currentClass = Array.from(document.querySelectorAll('#edit-overlay input[type="checkbox"]:checked')).map(function(cb){ return cb.value; });
   try {
-    await set(ref(db,'schedules/'+name), {name:name,grade:grade,teacher:teacher,days:days,currentClass:currentClass,updatedAt:new Date().toISOString()});
+    if (newName !== name) {
+      // Name changed - delete old record, create new
+      await remove(ref(db,'schedules/'+name));
+    }
+    await set(ref(db,'schedules/'+newName), {name:newName,grade:grade,teacher:teacher,days:days,currentClass:currentClass,updatedAt:new Date().toISOString()});
     document.getElementById('edit-overlay').remove();
     loadAdmin();
   } catch(e) { errEl.textContent='저장 실패: '+e.message; errEl.style.display='block'; }
