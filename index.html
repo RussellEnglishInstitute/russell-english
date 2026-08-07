@@ -942,9 +942,28 @@ async function loadSwapClasses() {
   if (!filtered.length) {
     btnWrap.innerHTML = '<p style="font-size:13px;color:#aaa">같은 학년의 다른 반이 없어요</p>';
   } else {
-    btnWrap.innerHTML = filtered.map(function(c){
-      return '<button onclick="selectSwapClass(\''+ c.name +'\')" id="swcls-'+ c.id +'" style="padding:6px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:12px;color:#555;cursor:pointer;font-family:inherit">'+ c.name +'</button>';
-    }).join('');
+    // Count members for each class
+    var schedSnap = await get(child(ref(db), 'schedules'));
+    var allStudents = schedSnap.exists() ? Object.values(schedSnap.val()) : [];
+    btnWrap.innerHTML = '';
+    filtered.forEach(function(c) {
+      var members = allStudents.filter(function(st){
+        var ca = Array.isArray(st.currentClass)?st.currentClass:(st.currentClass?[st.currentClass]:[]);
+        return ca.includes(c.name);
+      });
+      var count = members.length;
+      var maxSize = 4;
+      var haTO = count < maxSize;
+      var btn = document.createElement('button');
+      btn.id = 'swcls-'+c.id;
+      btn.style.cssText = 'padding:8px 12px;border-radius:8px;border:1px solid '+(haTO?'#1D9E75':'#ddd')+';background:'+(haTO?'#E1F5EE':'#fff')+';font-size:12px;color:'+(haTO?'#0F6E56':'#555')+';cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px';
+      btn.innerHTML = '<span>'+c.name+'</span>'
+        + '<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;background:'+(haTO?'#1D9E75':'#888')+';color:#fff">'
+        + (haTO ? count+'/'+maxSize+' TO '+(maxSize-count) : count+'/'+maxSize+' FULL')
+        + '</span>';
+      btn.onclick = (function(cls, to){ return function(){ selectSwapClass(cls.name, to); }; })(c, haTO);
+      btnWrap.appendChild(btn);
+    });
   }
   document.getElementById('swap-step2-title').textContent = '이동할 반 선택'+(s.grade?' — 같은 학년('+s.grade+')만 표시':'');
   document.getElementById('swap-step2').style.display = '';
