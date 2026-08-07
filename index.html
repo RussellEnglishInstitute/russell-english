@@ -946,10 +946,8 @@ async function loadSwapClasses() {
     var schedSnap = await get(child(ref(db), 'schedules'));
     var allStudents = schedSnap.exists() ? Object.values(schedSnap.val()) : [];
     var maxSize = 4;
-    // Pre-calculate s busy times
     var sBusy = [];
     Object.entries(s.days||{}).forEach(function(e){ e[1].forEach(function(sl){ if(sl.subject) sBusy.push({day:e[0],start:sl.start,end:sl.end}); }); });
-
     filtered.forEach(function(c) {
       var members = allStudents.filter(function(st){
         var ca = Array.isArray(st.currentClass)?st.currentClass:(st.currentClass?[st.currentClass]:[]);
@@ -957,42 +955,22 @@ async function loadSwapClasses() {
       });
       var count = members.length;
       var hasTO = count < maxSize;
-
-      // Check if s can go to this class
       var sConflicts = [];
-      c.slots.forEach(function(cs){ sBusy.forEach(function(sb){ if(cs.day===sb.day&&overlaps(cs.start,cs.end,sb.start,sb.end)) sConflicts.push(cs.day+' '+cs.start+'~'+cs.end); }); });
+      c.slots.forEach(function(cs){ sBusy.forEach(function(sb){ if(cs.day===sb.day&&overlaps(cs.start,cs.end,sb.start,sb.end)) sConflicts.push(cs.day); }); });
       var sCanGo = sConflicts.length===0;
-
-      // Build card
-      var card = document.createElement('div');
-      card.style.cssText = 'border:1.5px solid '+(hasTO?(sCanGo?'#1D9E75':'#F7C1C1'):'#e0e0e0')+';border-radius:10px;padding:10px 12px;margin-bottom:8px;background:'+(hasTO?(sCanGo?'#f0faf6':'#fff9f9'):'#fafafa')+';cursor:pointer';
-      card.onclick = (function(cls,to){ return function(){ selectSwapClass(cls.name,to); }; })(c, hasTO);
-
-      // Header: class name + status badge
-      var header = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-        + '<span style="font-size:13px;font-weight:600;color:#06162C">'+c.name+'</span>'
-        + '<span style="font-size:11px;font-weight:600;padding:2px 9px;border-radius:4px;background:'+(hasTO?(sCanGo?'#1D9E75':'#A32D2D'):'#888')+';color:#fff">'
-        + (hasTO?(sCanGo?'✓ 이동 가능':'✗ 충돌'):'FULL · 스왑 필요')+'</span>'
-        + '</div>';
-
-      // Member slots row
-      var slots = '';
-      for (var i=0; i<maxSize; i++) {
-        if (i < members.length) {
-          // Filled slot
-          slots += '<div style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;background:#E8ECF2;margin-right:4px;font-size:12px;font-weight:500;color:#06162C">'
-            + '<span style="width:20px;height:20px;border-radius:50%;background:#06162C;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">'+members[i].name[0]+'</span>'
-            + members[i].name+'</div>';
-        } else {
-          // Empty TO slot
-          slots += '<div style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1.5px dashed '+(sCanGo?'#1D9E75':'#F7A1A1')+';margin-right:4px;font-size:12px;font-weight:600;color:'+(sCanGo?'#0F6E56':'#A32D2D')+';">'
-            + (sCanGo?'+ '+s.name:'✗ 충돌')+'</div>';
-        }
-      }
-
-      card.innerHTML = header + '<div>'+slots+'</div>';
-      if (!sCanGo && !hasTO) card.style.opacity='0.6';
-      btnWrap.appendChild(card);
+      // Simple button
+      var btn = document.createElement('button');
+      btn.id = 'swcls-'+c.id;
+      var borderColor = hasTO ? (sCanGo?'#1D9E75':'#F7C1C1') : '#ddd';
+      var bgColor = hasTO ? (sCanGo?'#E1F5EE':'#FFF5F5') : '#fff';
+      var textColor = hasTO ? (sCanGo?'#0F6E56':'#A32D2D') : '#555';
+      var badgeBg = hasTO ? (sCanGo?'#1D9E75':'#A32D2D') : '#888';
+      var badgeText = hasTO ? (sCanGo?'TO '+(maxSize-count)+'자리 ✓':'TO '+(maxSize-count)+'자리 ✗') : count+'/'+maxSize+' FULL';
+      btn.style.cssText = 'padding:8px 12px;border-radius:8px;border:1.5px solid '+borderColor+';background:'+bgColor+';font-size:12px;color:'+textColor+';cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px';
+      btn.innerHTML = '<span style="font-weight:500">'+c.name+'</span>'
+        + '<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:'+badgeBg+';color:#fff">'+badgeText+'</span>';
+      btn.onclick = (function(cls,to){ return function(){ selectSwapClass(cls.name,to); }; })(c, hasTO);
+      btnWrap.appendChild(btn);
     });
   }
   document.getElementById('swap-step2-title').textContent = '이동할 반 선택'+(s.grade?' — 같은 학년('+s.grade+')만 표시':'');
@@ -1001,52 +979,142 @@ async function loadSwapClasses() {
   document.getElementById('swap-candidates-wrap').style.display = 'none';
 }
 
-window.selectSwapClass = async function(clsName) {
+window.selectSwapClass = async function(clsName, hasTO) {
   _swapTargetCls = _swapCls.find(function(c){ return c.name===clsName; });
   if (!_swapTargetCls) return;
   document.querySelectorAll('#swap-cls-btns button').forEach(function(btn){
-    var sel = btn.textContent===clsName;
-    btn.style.background=sel?'#06162C':'#fff'; btn.style.color=sel?'#fff':'#555'; btn.style.borderColor=sel?'#06162C':'#ddd'; btn.style.fontWeight=sel?'500':'400';
+    btn.style.outline = btn.id==='swcls-'+_swapTargetCls.id ? '2px solid #06162C' : 'none';
   });
   document.getElementById('swap-step3').style.display = 'none';
-  document.getElementById('swap-cls-label').textContent = clsName+' 학생 목록 — 스왑할 학생 클릭';
   document.getElementById('swap-candidates-wrap').style.display = '';
   var candDiv = document.getElementById('swap-candidates');
   candDiv.innerHTML = '<p style="font-size:12px;color:#aaa">불러오는 중...</p>';
+
+  var s = _swapStudent;
+  var sBusy = [];
+  Object.entries(s.days||{}).forEach(function(e){ e[1].forEach(function(sl){ if(sl.subject) sBusy.push({day:e[0],start:sl.start,end:sl.end,label:sl.subject}); }); });
+  var sConflicts = [];
+  _swapTargetCls.slots.forEach(function(cs){ sBusy.forEach(function(sb){ if(cs.day===sb.day&&overlaps(cs.start,cs.end,sb.start,sb.end)) sConflicts.push(cs.day+' '+cs.start+'~'+cs.end+' ← '+sb.label); }); });
+  var sCanGo = sConflicts.length===0;
+
   try {
     var snap = await get(child(ref(db), 'schedules'));
-    if (!snap.exists()) { candDiv.innerHTML='<p style="font-size:12px;color:#aaa">학생 없음</p>'; return; }
-    var allStudents = Object.values(snap.val());
+    var allStudents = snap.exists() ? Object.values(snap.val()) : [];
     var members = allStudents.filter(function(st){
       var ca = Array.isArray(st.currentClass)?st.currentClass:(st.currentClass?[st.currentClass]:[]);
       return ca.includes(clsName);
     }).sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
-    if (!members.length) { candDiv.innerHTML='<p style="font-size:12px;color:#aaa">해당 반 학생이 없어요 (수정에서 현재 수업 지정 필요)</p>'; return; }
-    var s = _swapStudent;
-    var sBusy = [];
-    Object.entries(s.days||{}).forEach(function(e){ e[1].forEach(function(sl){ if(sl.subject) sBusy.push({day:e[0],start:sl.start,end:sl.end,label:sl.subject}); }); });
-    candDiv.innerHTML = members.map(function(m) {
+
+    var maxSize = 4;
+    var sCurrentCls = _swapCls.find(function(c){
+      var ca = Array.isArray(s.currentClass)?s.currentClass:(s.currentClass?[s.currentClass]:[]);
+      return ca.length && c.name===ca[0];
+    });
+
+    var labelText = hasTO
+      ? (sCanGo ? clsName+' — TO 있음 · 이동 가능' : clsName+' — TO 있음 · 스케쥴 충돌')
+      : clsName+' — 스왕할 학생 클릭';
+    document.getElementById('swap-cls-label').textContent = labelText;
+
+    // Build slot visualization
+    var slotsWrap = document.createElement('div');
+    slotsWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px';
+
+    // Existing members
+    members.forEach(function(m) {
       var mBusy = [];
-      Object.entries(m.days||{}).forEach(function(e){ e[1].forEach(function(sl){ if(sl.subject) mBusy.push({day:e[0],start:sl.start,end:sl.end,label:sl.subject}); }); });
-      // Check if m can go to s's current class
-      var sCurrentCls = _swapCls.find(function(c){
-        var ca = Array.isArray(s.currentClass)?s.currentClass:(s.currentClass?[s.currentClass]:[]);
-        return ca.length && c.name===ca[0];
-      });
+      Object.entries(m.days||{}).forEach(function(e2){ e2[1].forEach(function(sl){ if(sl.subject) mBusy.push({day:e2[0],start:sl.start,end:sl.end}); }); });
       var mCanGo = true;
       if (sCurrentCls) {
         sCurrentCls.slots.forEach(function(cs){ mBusy.forEach(function(mb){ if(cs.day===mb.day&&overlaps(cs.start,cs.end,mb.start,mb.end)) mCanGo=false; }); });
       }
-      // Check if s can go to target class
-      var sCanGo = true;
-      _swapTargetCls.slots.forEach(function(cs){ sBusy.forEach(function(sb){ if(cs.day===sb.day&&overlaps(cs.start,cs.end,sb.start,sb.end)) sCanGo=false; }); });
-      var bothOk = sCanGo && mCanGo;
-      var tag = bothOk
-        ? '<span style="font-size:10px;font-weight:600;color:#0F6E56;background:#E1F5EE;border-radius:4px;padding:2px 7px">✓ 가능</span>'
-        : '<span style="font-size:10px;font-weight:600;color:#A32D2D;background:#FCEBEB;border-radius:4px;padding:2px 7px">✗ 불가</span>';
-      var schedText = mBusy.slice(0,3).map(function(b){ return b.day+' '+b.start+'~'+b.end; }).join(' · ')||'';
-      return '<div onclick="showSwapResult(\''+ m.name +'\')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;border:1px solid #eee;background:#fff;cursor:pointer;margin-bottom:6px"><div style="width:26px;height:26px;border-radius:50%;background:#06162C;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">'+ m.name[0] +'</div><span style="font-size:13px;font-weight:600;color:#1a1a1a;flex:1">'+ m.name +'</span><span style="font-size:11px;color:#888">'+ schedText +'</span>'+ tag +'</div>';
-    }).join('');
+      var swapOk = !hasTO && sCanGo && mCanGo;
+
+      var el = document.createElement('div');
+      el.style.cssText = 'display:flex;align-items:center;gap:5px;padding:8px 12px;border-radius:10px;'
+        +(hasTO ? 'background:#E8ECF2;border:1px solid #ddd;cursor:default'
+                : (swapOk ? 'background:#E1F5EE;border:1.5px solid #1D9E75;cursor:pointer' : 'background:#f5f5f5;border:1px solid #eee;cursor:default;opacity:0.7'));
+
+      var av = document.createElement('div');
+      av.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#06162C;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0';
+      av.textContent = m.name[0];
+
+      var info = document.createElement('div');
+      var nameEl = document.createElement('div');
+      nameEl.style.cssText = 'font-size:13px;font-weight:600;color:#06162C';
+      nameEl.textContent = m.name;
+      info.appendChild(nameEl);
+
+      if (!hasTO) {
+        var tag = document.createElement('div');
+        tag.style.cssText = 'font-size:10px;font-weight:600;color:'+(swapOk?'#0F6E56':'#A32D2D');
+        tag.textContent = swapOk ? '↔ 스왕 가능' : '✗ 스왕 불가';
+        info.appendChild(tag);
+      }
+
+      el.appendChild(av);
+      el.appendChild(info);
+      if (!hasTO && swapOk) {
+        el.onclick = (function(nm){ return function(){ showSwapResult(nm); }; })(m.name);
+      }
+      slotsWrap.appendChild(el);
+    });
+
+    // TO empty slots OR student placement slot
+    if (hasTO) {
+      var toCount = maxSize - members.length;
+      for (var i=0; i<toCount; i++) {
+        var toEl = document.createElement('div');
+        toEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:8px 12px;border-radius:10px;border:2px dashed '+(sCanGo?'#1D9E75':'#F7C1C1')+';background:'+(sCanGo?'#f0faf6':'#fff9f9')+';cursor:'+(sCanGo?'default':'default');
+        var toAv = document.createElement('div');
+        toAv.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px dashed '+(sCanGo?'#1D9E75':'#F7C1C1')+';display:flex;align-items:center;justify-content:center;font-size:14px;color:'+(sCanGo?'#1D9E75':'#F7C1C1')+';flex-shrink:0';
+        toAv.textContent = sCanGo ? '+' : '✗';
+        var toInfo = document.createElement('div');
+        var toName = document.createElement('div');
+        toName.style.cssText = 'font-size:13px;font-weight:600;color:'+(sCanGo?'#0F6E56':'#A32D2D');
+        toName.textContent = s.name;
+        var toTag = document.createElement('div');
+        toTag.style.cssText = 'font-size:10px;font-weight:600;color:'+(sCanGo?'#0F6E56':'#A32D2D');
+        toTag.textContent = sCanGo ? '✓ 이동 가능' : '✗ 스케쥴 충돌';
+        toInfo.appendChild(toName);
+        toInfo.appendChild(toTag);
+        toEl.appendChild(toAv);
+        toEl.appendChild(toInfo);
+        slotsWrap.appendChild(toEl);
+      }
+    } else {
+      // FULL: add a ghost slot showing where student would go
+      var ghostEl = document.createElement('div');
+      ghostEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:8px 12px;border-radius:10px;border:2px dashed '+(sCanGo?'#185FA5':'#ccc')+';background:'+(sCanGo?'#E6F1FB':'#f9f9f9')+';opacity:0.8';
+      var ghostAv = document.createElement('div');
+      ghostAv.style.cssText = 'width:28px;height:28px;border-radius:50%;border:2px dashed '+(sCanGo?'#185FA5':'#ccc')+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:'+(sCanGo?'#185FA5':'#aaa')+';flex-shrink:0';
+      ghostAv.textContent = s.name[0];
+      var ghostInfo = document.createElement('div');
+      var ghostName = document.createElement('div');
+      ghostName.style.cssText = 'font-size:13px;font-weight:600;color:'+(sCanGo?'#185FA5':'#aaa');
+      ghostName.textContent = s.name;
+      var ghostTag = document.createElement('div');
+      ghostTag.style.cssText = 'font-size:10px;font-weight:500;color:'+(sCanGo?'#185FA5':'#aaa');
+      ghostTag.textContent = sCanGo ? '스왜 대상 클릭 후 이동' : '✗ 스케쥴 충돌';
+      ghostInfo.appendChild(ghostName);
+      ghostInfo.appendChild(ghostTag);
+      ghostEl.appendChild(ghostAv);
+      ghostEl.appendChild(ghostInfo);
+      slotsWrap.appendChild(ghostEl);
+    }
+
+    candDiv.innerHTML = '';
+    candDiv.appendChild(slotsWrap);
+
+    // Conflict info for TO case
+    if (hasTO && !sCanGo) {
+      var infoDiv = document.createElement('div');
+      infoDiv.style.cssText = 'padding:10px 12px;border-radius:8px;background:#FCEBEB;border:1px solid #F7C1C1;margin-top:4px';
+      infoDiv.innerHTML = '<div style="font-size:12px;font-weight:600;color:#A32D2D;margin-bottom:4px">충돌 세부</div>'
+        +sConflicts.map(function(c){ return '<div style="font-size:11px;color:#A32D2D">• '+c+'</div>'; }).join('');
+      candDiv.appendChild(infoDiv);
+    }
+
   } catch(e) { candDiv.innerHTML='<p style="font-size:12px;color:#e24b4a">오류: '+e.message+'</p>'; }
 };
 
