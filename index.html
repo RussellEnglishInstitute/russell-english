@@ -763,23 +763,39 @@ window.loadClsList = async function() {
   renderClsList(cls);
 };
 
+var _clsDept = 'middle';
+
+window.switchClsDept = function(dept) {
+  _clsDept = dept;
+  document.getElementById('cls-dept-middle').className = 'dept-tab'+(dept==='middle'?' active':'');
+  document.getElementById('cls-dept-high').className = 'dept-tab'+(dept==='high'?' active':'');
+  window.loadClsList();
+};
+
 function renderClsList(cls) {
   document.getElementById('cls-count').textContent = '총 '+cls.length+'개';
   var el = document.getElementById('cls-list');
-  if (!cls.length) { el.innerHTML='<p style="font-size:13px;color:#aaa;text-align:center;padding:1.5rem">아직 등록된 반이 없어요</p>'; return; }
 
-  // 선생님별 그룹화
-  var teacherMap={}, teacherOrder=[];
-  cls.forEach(function(c) {
+  // Filter by dept
+  var deptGrades = _clsDept==='middle' ? MIDDLE_GRADES : HIGH_GRADES;
+  var filtered = cls.filter(function(c){ return !c.grade || deptGrades.includes(c.grade); });
+
+  if (!filtered.length) { el.innerHTML='<p style="font-size:13px;color:#aaa;text-align:center;padding:1.5rem">등록된 반이 없어요</p>'; return; }
+
+  // Fixed teacher order
+  var teacherOrder = _clsDept==='middle' ? ['정T','제이든T','엘T','비비T','기타'] : ['휴T','누리T','현T','기타'];
+  var teacherMap={};
+  teacherOrder.forEach(function(t){ teacherMap[t]=[]; });
+  filtered.forEach(function(c) {
     var t = c.name.match(/^\[([^\]]+)\]/);
     var teacher = t?t[1]:'기타';
-    if (!teacherMap[teacher]) { teacherMap[teacher]=[]; teacherOrder.push(teacher); }
+    if (!teacherMap[teacher]) teacherMap[teacher]=[];
     teacherMap[teacher].push(c);
   });
 
   el.innerHTML='';
   teacherOrder.forEach(function(teacher) {
-    var items = teacherMap[teacher];
+    var items = teacherMap[teacher]||[];
     var tid = 'clsacc-'+teacher.replace(/[^a-zA-Z0-9가-힣]/g,'_');
 
     // 아코디언 헤더
@@ -1366,6 +1382,10 @@ input:focus{border-color:#06162C;background:#fff}
           <div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:1.25rem">
             <div style="font-size:14px;font-weight:600;color:#06162C;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
               등록된 반 <span id="cls-count" style="font-size:12px;font-weight:400;color:#888"></span>
+            </div>
+            <div style="display:flex;gap:0;margin-bottom:1rem;border-bottom:2px solid #eee">
+              <button class="dept-tab active" id="cls-dept-middle" onclick="switchClsDept('middle')">중등부</button>
+              <button class="dept-tab" id="cls-dept-high" onclick="switchClsDept('high')">고등부</button>
             </div>
             <div id="cls-list"><p style="font-size:13px;color:#aaa;text-align:center;padding:1.5rem">아직 등록된 반이 없어요</p></div>
           </div>
