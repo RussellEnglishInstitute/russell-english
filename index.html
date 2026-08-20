@@ -426,7 +426,16 @@ function buildStudentCard(s) {
   var nameDiv = document.createElement('div'); nameDiv.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap';
   nameDiv.innerHTML = '<span class="s-name">'+s.name+'</span>'+gradeBadge+clsBadges;
   var btnDiv = document.createElement('div'); btnDiv.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap';
-  var timeSpan = document.createElement('span'); timeSpan.className='s-time'; timeSpan.textContent=updated+' 제출';
+  var timeSpan = document.createElement('span'); timeSpan.className='s-time';
+        var filterDate = document.getElementById('update-filter-date') ? document.getElementById('update-filter-date').value : '';
+        var isOutdated = filterDate && (!s.updatedAt || new Date(s.updatedAt).getTime() < new Date(filterDate).getTime());
+        if (isOutdated) {
+          var badge = document.createElement('span');
+          badge.style.cssText = 'background:#A32D2D;color:#fff;border-radius:4px;padding:1px 6px;font-size:10px;margin-right:4px;font-weight:600';
+          badge.textContent = '미업데이트';
+          timeSpan.appendChild(badge);
+        }
+        timeSpan.appendChild(document.createTextNode(updated ? updated+' 제출' : '미제출'));
 
   var plBtn = document.createElement('button'); plBtn.className='placement-btn'; plBtn.textContent='배치 확인 ▾';
   plBtn.onclick = (function(n){ return function(){ window.togglePlacement(n,this); }; })(s.name);
@@ -508,6 +517,34 @@ window.filterByTeacher = function(teacher) {
 };
 
 
+
+window.applyUpdateFilter = function() {
+  var dateVal = document.getElementById('update-filter-date').value;
+  if (!dateVal) { clearUpdateFilter(); return; }
+  document.getElementById('clear-date-btn').style.display = '';
+  var cutoff = new Date(dateVal).getTime();
+  var source = window._filteredStudents || _allStudents;
+  var results = source.filter(function(s) {
+    if (!s.updatedAt) return true;
+    return new Date(s.updatedAt).getTime() < cutoff;
+  });
+  var grid = document.getElementById('admin-grid');
+  grid.innerHTML = '';
+  document.getElementById('admin-pagination').style.display = 'none';
+  if (!results.length) {
+    grid.innerHTML = '<p class="admin-empty">미업데이트 학생이 없어요 🎉</p>';
+    document.getElementById('student-count').textContent = '미업데이트 0명';
+    return;
+  }
+  results.forEach(function(s){ grid.appendChild(buildStudentCard(s)); });
+  document.getElementById('student-count').textContent = '미업데이트 '+results.length+'명';
+};
+
+window.clearUpdateFilter = function() {
+  document.getElementById('update-filter-date').value = '';
+  document.getElementById('clear-date-btn').style.display = 'none';
+  renderFilteredByDept();
+};
 
 window.searchStudent = function() {
   var q = document.getElementById('student-search').value.trim().toLowerCase();
@@ -1342,6 +1379,11 @@ input:focus{border-color:#06162C;background:#fff}
               <option value="비비T">비비T</option>
               <option value="대기자">대기자 (반 미배정)</option>
             </select>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+            <label style="font-size:12px;color:#555;white-space:nowrap;font-weight:500">이후 미업데이트</label>
+            <input type="date" id="update-filter-date" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;outline:none" onchange="applyUpdateFilter()"/>
+            <button onclick="clearUpdateFilter()" id="clear-date-btn" style="display:none;padding:8px 12px;background:#fff;color:#555;border:1px solid #ddd;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">초기화</button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:1rem">
             <input type="text" id="student-search" placeholder="학생 이름 검색..." onkeydown="if(event.key==='Enter')searchStudent()" style="flex:1;padding:9px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;outline:none" onfocus="this.style.borderColor='#06162C'" onblur="this.style.borderColor='#ddd'"/>
