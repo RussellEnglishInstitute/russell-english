@@ -1075,7 +1075,7 @@ window.selectSwapClass = async function(clsName, hasTO) {
 
     var labelText = hasTO
       ? (sCanGo ? clsName+' — TO 있음 · 이동 가능' : clsName+' — TO 있음 · 스케쥴 충돌')
-      : clsName+' — 스왕할 학생 클릭';
+      : clsName+' — 스왑할 학생 클릭';
     document.getElementById('swap-cls-label').textContent = labelText;
 
     // Build slot visualization
@@ -1110,7 +1110,7 @@ window.selectSwapClass = async function(clsName, hasTO) {
       if (!hasTO) {
         var tag = document.createElement('div');
         tag.style.cssText = 'font-size:10px;font-weight:600;color:'+(swapOk?'#0F6E56':'#A32D2D');
-        tag.textContent = swapOk ? '↔ 스왕 가능' : '✗ 스왕 불가';
+        tag.textContent = swapOk ? '↔ 스왑 가능' : '✗ 스왑 불가';
         info.appendChild(tag);
       }
 
