@@ -261,7 +261,16 @@ window.selectGrade = async function(grade) {
   try {
     var snap = await get(child(ref(db), 'classes'));
     var cls = snap.exists() && Array.isArray(snap.val()) ? snap.val() : [];
-    var filtered = cls.filter(function(c){ return !c.grade || c.grade === grade; });
+    var MID_GRADES = ['초등','중1','중2','중3'];
+    var HI_GRADES  = ['고1','고2','고3'];
+    var filtered = cls.filter(function(c){
+      if (!c.grade) return true;
+      var selMid = MID_GRADES.includes(grade);
+      var selHi  = HI_GRADES.includes(grade);
+      var cMid   = MID_GRADES.includes(c.grade);
+      var cHi    = HI_GRADES.includes(c.grade);
+      return (selMid && cMid) || (selHi && cHi) || c.grade === grade;
+    });
     if (!filtered.length) {
       sel.innerHTML = '<option value="">해당 학년 반이 없어요</option>';
     } else {
