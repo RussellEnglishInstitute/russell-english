@@ -1157,7 +1157,7 @@ window.selectSwapClass = async function(clsName, hasTO) {
       ghostName.textContent = s.name;
       var ghostTag = document.createElement('div');
       ghostTag.style.cssText = 'font-size:10px;font-weight:500;color:'+(sCanGo?'#185FA5':'#aaa');
-      ghostTag.textContent = sCanGo ? '스왜 대상 클릭 후 이동' : '✗ 스케쥴 충돌';
+      ghostTag.textContent = sCanGo ? '스왑 대상 클릭 후 이동' : '✗ 스케쥴 충돌';
       ghostInfo.appendChild(ghostName);
       ghostInfo.appendChild(ghostTag);
       ghostEl.appendChild(ghostAv);
